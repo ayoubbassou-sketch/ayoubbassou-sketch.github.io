@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — MindPill</title>
+  <meta name="description" content="MindPill checkout (demo)." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💊</text></svg>" />
+  <link rel="stylesheet" href="styles.css?v=2" />
+  <script src="https://cdn.brevo.com/js/sdk-loader.js" async></script>
+  <script>
+    window.Brevo = window.Brevo || [];
+    Brevo.push(["init", { client_key: "fwd1i68m6k388az7fch1z34x" }]);
+  </script>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a href="index.html" class="brand"><span class="dot">💊</span> MindPill</a>
+      <nav class="nav-links">
+        <a href="store.html">← Keep shopping</a>
+        <a href="store.html" class="btn btn-ghost">Cart <span class="cart-badge" data-cart-count style="display:none;">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap page">
+    <a href="store.html" class="back-link">← Back to store</a>
+    <h1>Checkout</h1>
+
+    <div id="checkout-body">
+      <div class="notice">🧪 <strong>Demo checkout.</strong> No real payment is processed and no card data is stored or sent anywhere. Please don't enter real card details — the fields below are for demonstration only.</div>
+
+      <div class="layout-2">
+        <!-- Left: forms -->
+        <div>
+          <div class="form-card" style="margin-bottom: 24px;">
+            <h3 style="margin-bottom: 18px;">Contact &amp; shipping</h3>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="firstname">First name</label>
+                <input id="firstname" type="text" autocomplete="given-name" placeholder="Ada" required />
+              </div>
+              <div class="field">
+                <label for="lastname">Last name</label>
+                <input id="lastname" type="text" autocomplete="family-name" placeholder="Lovelace" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="address">Address</label>
+              <input id="address" type="text" autocomplete="street-address" placeholder="1 Analytical Engine Ln" required />
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="city">City</label>
+                <input id="city" type="text" autocomplete="address-level2" placeholder="London" required />
+              </div>
+              <div class="field">
+                <label for="zip">Postal code</label>
+                <input id="zip" type="text" autocomplete="postal-code" placeholder="EC1A" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <h3 style="margin-bottom: 6px;">Payment</h3>
+            <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 18px;">Demo only — use the sample card <code>4242 4242 4242 4242</code>. Do not enter a real card.</p>
+            <div class="field">
+              <label for="card">Card number</label>
+              <input id="card" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242" autocomplete="off" />
+            </div>
+            <div class="row-2">
+              <div class="field">
+                <label for="exp">Expiry</label>
+                <input id="exp" type="text" placeholder="12 / 30" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="cvc">CVC</label>
+                <input id="cvc" type="text" inputmode="numeric" placeholder="123" autocomplete="off" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: order summary -->
+        <div class="form-card">
+          <h3 style="margin-bottom: 8px;">Your order</h3>
+          <div id="cart-lines"></div>
+          <div id="summary" style="margin-top: 16px;"></div>
+          <button id="pay-btn" class="btn btn-primary" style="width: 100%; margin-top: 22px;">Pay <span id="pay-amount"></span></button>
+          <p style="color: var(--muted); font-size: 0.78rem; text-align: center; margin-top: 12px;">Clicking "Pay" simulates a successful order.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty cart state -->
+    <div id="empty" class="empty-state" style="display: none;">
+      <div style="font-size: 3rem;">🛒</div>
+      <p style="margin: 12px 0 20px;">Your cart is empty.</p>
+      <a href="store.html" class="btn btn-primary">Go to the store</a>
+    </div>
+
+    <!-- Success state -->
+    <div id="success" class="success-box" style="display: none; max-width: 560px; margin: 0 auto;">
+      <div class="big">✅</div>
+      <h2>Order confirmed!</h2>
+      <p style="color: var(--muted); margin-top: 8px;">Order <strong id="order-id"></strong> is on its way to your brain (and mailbox). A confirmation event was sent to Brevo.</p>
+      <a href="store.html" class="btn btn-ghost" style="margin-top: 22px;">Continue shopping</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p class="disclaimer">Demo checkout. "Pay" fires a Brevo <code>order_created</code> event. No payment is processed and no card data is transmitted or stored.</p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=2"></script>
+  <script>
+    const SHIPPING = 5;
+    trackPage("checkout");   // enriched page view
+
+    function render() {
+      const cart = getCart();
+      const ids = Object.keys(cart);
+      const body = document.getElementById("checkout-body");
+      const empty = document.getElementById("empty");
+
+      if (ids.length === 0) {
+        body.style.display = "none";
+        empty.style.display = "block";
+        return;
+      }
+      body.style.display = "";
+      empty.style.display = "none";
+
+      // Cart lines
+      const lines = document.getElementById("cart-lines");
+      lines.innerHTML = "";
+      ids.forEach(id => {
+        const p = PRODUCTS[id]; if (!p) return;
+        const q = cart[id];
+        const line = document.createElement("div");
+        line.className = "cart-line";
+        line.innerHTML =
+          '<div class="thumb">' + p.emoji + '</div>' +
+          '<div class="info"><h4>' + p.name + '</h4><span>$' + p.price + ' each</span></div>' +
+          '<div class="qty">' +
+            '<button data-dec="' + id + '">−</button>' +
+            '<span>' + q + '</span>' +
+            '<button data-inc="' + id + '">+</button>' +
+          '</div>' +
+          '<div class="line-total">$' + (p.price * q) + '</div>';
+        lines.appendChild(line);
+      });
+
+      // Summary
+      const sub = cartTotal(cart);
+      document.getElementById("summary").innerHTML =
+        '<div class="summary-row"><span>Subtotal</span><span>$' + sub + '</span></div>' +
+        '<div class="summary-row"><span>Shipping</span><span>$' + SHIPPING + '</span></div>' +
+        '<div class="summary-row total"><span>Total</span><span>$' + (sub + SHIPPING) + '</span></div>';
+      document.getElementById("pay-amount").textContent = "$" + (sub + SHIPPING);
+    }
+
+    // Quantity changes fire cart_updated (via setQty in app.js)
+    document.getElementById("cart-lines").addEventListener("click", function (e) {
+      const inc = e.target.closest("[data-inc]");
+      const dec = e.target.closest("[data-dec]");
+      const cart = getCart();
+      if (inc) { const id = inc.getAttribute("data-inc"); setQty(id, (cart[id] || 0) + 1); render(); }
+      if (dec) { const id = dec.getAttribute("data-dec"); setQty(id, (cart[id] || 0) - 1); render(); }
+    });
+
+    // Pay -> order_created
+    document.getElementById("pay-btn").addEventListener("click", function () {
+      const email = document.getElementById("email").value.trim();
+      const firstname = document.getElementById("firstname").value.trim();
+      const address = document.getElementById("address").value.trim();
+      if (!email || !firstname || !address) {
+        showToast("Please fill in your contact & shipping details");
+        return;
+      }
+      if (cartCount() === 0) return;
+
+      const orderId = "MP-" + Date.now().toString(36).toUpperCase();
+      const orderTotal = cartTotal() + SHIPPING;
+      const items = cartItems();
+      const favProduct = items.slice().sort((a, b) => b.quantity - a.quantity)[0];
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD for Brevo date attributes
+
+      // 1) Identify the buyer so the order attaches to a real contact + enrich attributes
+      //    Custom attributes must be created in Brevo first, else ignored.
+      // https://developers.brevo.com/docs/identify-users-js
+      identifyContact(email, {
+        FIRSTNAME: firstname,
+        LASTNAME: document.getElementById("lastname").value.trim(),
+        PLAN: "customer",
+        SOURCE: "checkout",
+        LAST_ORDER_ID: orderId,
+        LAST_ORDER_TOTAL: orderTotal,
+        LAST_ORDER_DATE: today,
+        FAV_PRODUCT: favProduct ? favProduct.name : ""
+      });
+
+      // 2) Fire the purchase event (Brevo)
+      // https://developers.brevo.com/docs/track-custom-events-js
+      trackOrderCreated(orderId, email, SHIPPING);
+
+      // 3) GTM / GA4 ecommerce: purchase (push BEFORE clearing the cart)
+      pushEcommerce("purchase", {
+        transaction_id: orderId,
+        currency: "USD",
+        value: orderTotal,
+        shipping: SHIPPING,
+        items: gaItemsFromCart()   // GA4-format items (built before the cart is cleared)
+      });
+
+      // Clear cart after the order is captured
+      saveCart({});
+      updateCartBadges();
+
+      document.getElementById("checkout-body").style.display = "none";
+      document.getElementById("order-id").textContent = orderId;
+      document.getElementById("success").style.display = "block";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    // Prefill email if we captured it earlier
+    document.addEventListener("DOMContentLoaded", function () {
+      const e = getEmail();
+      if (e) document.getElementById("email").value = e;
+      render();
+      // GTM / GA4: checkout started (only if there's something in the cart)
+      if (cartCount() > 0) {
+        pushEcommerce("begin_checkout", {
+          currency: "USD",
+          value: cartTotal() + SHIPPING,
+          items: gaItemsFromCart()
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Store — MindPill</title>
+  <meta name="description" content="MindPill merch. Think smarter, dress smarter." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💊</text></svg>" />
+  <link rel="stylesheet" href="styles.css?v=2" />
+  <script src="https://cdn.brevo.com/js/sdk-loader.js" async></script>
+  <script>
+    window.Brevo = window.Brevo || [];
+    Brevo.push(["init", { client_key: "fwd1i68m6k388az7fch1z34x" }]);
+  </script>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a href="index.html" class="brand"><span class="dot">💊</span> MindPill</a>
+      <nav class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="waitlist.html">Waitlist</a>
+        <a href="checkout.html" class="btn btn-primary">Cart <span class="cart-badge" data-cart-count style="display:none;">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap page">
+    <a href="index.html" class="back-link">← Back home</a>
+    <h1>The MindPill Store</h1>
+    <p class="lead">Wear your upgraded brain on your sleeve. Every tee is 100% cotton, 0% actual neural implant.</p>
+
+    <div class="product-grid" id="product-grid"></div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p class="disclaimer">Demo store. Adding to cart fires a Brevo <code>cart_updated</code> event. No real products ship.</p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=2"></script>
+  <script>
+    trackPage("store");   // enriched page view for the store listing
+
+    const grid = document.getElementById("product-grid");
+    Object.entries(PRODUCTS).forEach(([id, p]) => {
+      const el = document.createElement("div");
+      el.className = "product";
+      const href = "product.html?id=" + encodeURIComponent(id);
+      el.innerHTML =
+        '<a href="' + href + '" class="thumb">' + p.emoji + '</a>' +
+        '<div class="body">' +
+          '<h3><a href="' + href + '">' + p.name + '</a></h3>' +
+          '<p class="desc">' + p.blurb + '</p>' +
+          '<div class="price">$' + p.price + '</div>' +
+          '<button class="btn btn-primary" data-add="' + id + '">Add to cart</button>' +
+        '</div>';
+      grid.appendChild(el);
+    });
+
+    grid.addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-add]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-add");
+      addToCart(id);                          // fires cart_updated
+      showToast(PRODUCTS[id].name.length > 24 ? "Added to cart" : PRODUCTS[id].name + " added");
+    });
+  </script>
+</body>
+</html>

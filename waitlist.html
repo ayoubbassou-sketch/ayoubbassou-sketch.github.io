@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join the waitlist — MindPill</title>
+  <meta name="description" content="Join the MindPill waitlist." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💊</text></svg>" />
+  <link rel="stylesheet" href="styles.css?v=2" />
+  <script src="https://cdn.brevo.com/js/sdk-loader.js" async></script>
+  <script>
+    window.Brevo = window.Brevo || [];
+    Brevo.push(["init", { client_key: "fwd1i68m6k388az7fch1z34x" }]);
+  </script>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a href="index.html" class="brand"><span class="dot">💊</span> MindPill</a>
+      <nav class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="store.html">Store</a>
+        <a href="index.html#faq">FAQ</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap page">
+    <div class="page-narrow" style="margin: 0 auto;">
+      <a href="index.html" class="back-link">← Back home</a>
+      <h1>Join the waitlist</h1>
+      <p class="lead">Be first in line for the first batch of MindPill. We'll ping you the moment dosing opens.</p>
+
+      <div id="form-wrap" class="form-card">
+        <form id="waitlist-form" novalidate>
+          <div class="row-2">
+            <div class="field">
+              <label for="firstname">First name</label>
+              <input id="firstname" name="firstname" type="text" autocomplete="given-name" placeholder="Ada" required />
+            </div>
+            <div class="field">
+              <label for="lastname">Last name</label>
+              <input id="lastname" name="lastname" type="text" autocomplete="family-name" placeholder="Lovelace" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            <div class="hint">We'll only use this to tell you when MindPill ships.</div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Reserve my dose</button>
+        </form>
+      </div>
+
+      <div id="success" class="success-box" style="display: none;">
+        <div class="big">🎉</div>
+        <h2>You're on the list!</h2>
+        <p style="color: var(--muted); margin-top: 8px;">We've reserved your spot. Keep thinking — we'll be in touch.</p>
+        <a href="store.html" class="btn btn-ghost" style="margin-top: 22px;">Grab some merch while you wait →</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p class="disclaimer">MindPill is a fictional demo. Submitting this form fires a Brevo tracking event; no product actually ships.</p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=2"></script>
+  <script>
+    trackPage("waitlist");   // enriched page view
+
+    document.getElementById("waitlist-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const firstname = document.getElementById("firstname").value.trim();
+      const lastname = document.getElementById("lastname").value.trim();
+      if (!email || !firstname) return;
+
+      // 1) Identify the visitor -> ties their cookie to a real contact + sets attributes
+      //    Custom attributes (PLAN, SOURCE) must be created in Brevo first, else ignored.
+      identifyContact(email, {
+        FIRSTNAME: firstname,
+        LASTNAME: lastname,
+        PLAN: "waitlist",
+        SOURCE: "waitlist_page"
+      });
+
+      // 2) Fire the custom event (now attributed to the identified contact)
+      // https://developers.brevo.com/docs/track-custom-events-js
+      window.Brevo = window.Brevo || [];
+      Brevo.push([
+        "track",
+        "waitlist_joined",
+        { email: email, FIRSTNAME: firstname, LASTNAME: lastname },
+        { id: "waitlist:" + email, data: { product: "MindPill", source: "waitlist_page" } }
+      ]);
+
+      // GTM / GA4: lead captured
+      dl().push({ event: "generate_lead", lead_source: "waitlist_page", currency: "USD", value: 0 });
+
+      document.getElementById("form-wrap").style.display = "none";
+      document.getElementById("success").style.display = "block";
+    });
+  </script>
+</body>
+</html>

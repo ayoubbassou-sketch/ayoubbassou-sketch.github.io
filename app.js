@@ -4,6 +4,7 @@
 
 const CART_KEY = "mindpill_cart";
 const EMAIL_KEY = "mindpill_email";
+const EXT_ID_KEY = "mindpill_ext_id";
 
 const PRODUCTS = {
   "tee-think":   { name: "\"I Think Therefore I Am (Updated)\" Tee", price: 29, emoji: "🧠", category: "Tees", blurb: "Descartes, patched. A soft-touch cotton tee for the recently upgraded." },
@@ -31,6 +32,8 @@ function cartTotal(cart) {
 }
 function getEmail() { try { return localStorage.getItem(EMAIL_KEY) || ""; } catch (e) { return ""; } }
 function setEmail(v) { try { localStorage.setItem(EMAIL_KEY, v); } catch (e) {} }
+function getExtId() { try { return localStorage.getItem(EXT_ID_KEY) || ""; } catch (e) { return ""; } }
+function setExtId(v) { try { localStorage.setItem(EXT_ID_KEY, v); } catch (e) {} }
 
 /* Build the event_data.data.items array Brevo expects */
 function cartItems(cart) {
@@ -80,6 +83,7 @@ function trackPage(pageName, extraProps) {
 function identifyContact(email, attributes) {
   if (!email) return;
   setEmail(email);
+  setExtId((attributes && attributes.EXT_ID) || "");   // EXT_ID is the reserved attribute key for ext_id
   window.Brevo = window.Brevo || [];
   Brevo.push([
     "identify",
@@ -177,4 +181,37 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
+/* Identity bar (test aid): shows who this site last identified to Brevo.
+   The Brevo tracker has no documented way to read back the cookie's contact,
+   so this is what the site last sent to Brevo.identify (kept in localStorage), not what Brevo holds. */
+function renderIdentityBar() {
+  let bar = document.getElementById("identity-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "identity-bar";
+    bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#0b1220;color:#e5e7eb;font:13px/1.4 ui-monospace,Menlo,monospace;padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center";
+    document.body.appendChild(bar);
+  }
+  const email = getEmail(), extId = getExtId();
+  bar.textContent = "";
+  const who = document.createElement("span");
+  who.textContent = email
+    ? "You are connected as email: " + email + " · ext_id: " + (extId || "(none sent)")
+    : "Not identified on this site (anonymous cookie only)";
+  bar.appendChild(who);
+
+  const mk = (tag, props) => Object.assign(document.createElement(tag), props);
+  const emailIn = mk("input", { placeholder: "email", value: email, size: 28 });
+  const extIn = mk("input", { placeholder: "ext_id (optional)", value: extId, size: 18 });
+  const idBtn = mk("button", { textContent: "Identify" });
+  const clearBtn = mk("button", { textContent: "Forget" });
+  idBtn.onclick = () => {
+    const e = emailIn.value.trim(), x = extIn.value.trim();
+    if (e) { identifyContact(e, x ? { EXT_ID: x } : {}); renderIdentityBar(); }
+  };
+  clearBtn.onclick = () => { setEmail(""); setExtId(""); renderIdentityBar(); };
+  [emailIn, extIn, idBtn, clearBtn].forEach(el => { el.style.cssText += "font:inherit;padding:2px 6px"; bar.appendChild(el); });
+}
+
 document.addEventListener("DOMContentLoaded", updateCartBadges);
+document.addEventListener("DOMContentLoaded", renderIdentityBar);

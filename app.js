@@ -181,37 +181,135 @@ function showToast(msg) {
   t._timer = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-/* Identity bar (test aid): shows who this site last identified to Brevo.
-   The Brevo tracker has no documented way to read back the cookie's contact,
-   so this is what the site last sent to Brevo.identify (kept in localStorage), not what Brevo holds. */
-function renderIdentityBar() {
-  let bar = document.getElementById("identity-bar");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "identity-bar";
-    bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#0b1220;color:#e5e7eb;font:13px/1.4 ui-monospace,Menlo,monospace;padding:8px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center";
-    document.body.appendChild(bar);
-  }
-  const email = getEmail(), extId = getExtId();
-  bar.textContent = "";
-  const who = document.createElement("span");
-  who.textContent = email
-    ? "You are connected as email: " + email + " · ext_id: " + (extId || "(none sent)")
-    : "Not identified on this site (anonymous cookie only)";
-  bar.appendChild(who);
+/* ---- Connect / Logout (test aid) ----
+   The Brevo tracker keeps the visitor in the "sib_cuid" cookie and only reads/creates it
+   when sa.js boots (see https://sibautomation.com/sa.js). So to switch person we:
+     1. delete sib_cuid, 2. reload the page (the tracker mints a fresh cookie),
+     3. send identify for the new person on that fresh cookie.
+   identify accepts email_id and/or ext_id as identifiers (sa.js); Brevo's docs
+   (https://developers.brevo.com/docs/identify-users-js) only document email_id as required,
+   so an ext_id-only connect works only if the contact already exists with that ext_id. */
+const PENDING_KEY = "mindpill_pending_identify";
+const TRACKER_COOKIE = "sib_cuid";
 
-  const mk = (tag, props) => Object.assign(document.createElement(tag), props);
-  const emailIn = mk("input", { placeholder: "email", value: email, size: 28 });
-  const extIn = mk("input", { placeholder: "ext_id (optional)", value: extId, size: 18 });
-  const idBtn = mk("button", { textContent: "Identify" });
-  const clearBtn = mk("button", { textContent: "Forget" });
-  idBtn.onclick = () => {
-    const e = emailIn.value.trim(), x = extIn.value.trim();
-    if (e) { identifyContact(e, x ? { EXT_ID: x } : {}); renderIdentityBar(); }
-  };
-  clearBtn.onclick = () => { setEmail(""); setExtId(""); renderIdentityBar(); };
-  [emailIn, extIn, idBtn, clearBtn].forEach(el => { el.style.cssText += "font:inherit;padding:2px 6px"; bar.appendChild(el); });
+function getCookie(name) {
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : "";
+}
+function resetTrackerCookie() {
+  const past = "expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/";
+  const host = window.location.hostname;
+  // the tracker sets it with domain=<hostname>; clear every variant to be safe
+  [";domain=" + host, ";domain=." + host, ""].forEach(d => { document.cookie = TRACKER_COOKIE + "=;" + past + d; });
+  try { localStorage.removeItem("BrevoTracker.identifyCalledDate"); } catch (e) {}
+}
+
+function connectAs(email, extId) {
+  if (!email && !extId) return;
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ email: email || "", extId: extId || "" })); } catch (e) {}
+  setEmail(""); setExtId("");
+  resetTrackerCookie();
+  window.location.reload();
+}
+function logout() {
+  try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+  setEmail(""); setExtId("");
+  resetTrackerCookie();
+  window.location.reload();
+}
+
+/* After the reload: identify the pending person on the brand-new cookie */
+function flushPendingIdentify() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(PENDING_KEY)); localStorage.removeItem(PENDING_KEY); } catch (e) {}
+  if (!p || (!p.email && !p.extId)) return;
+  setEmail(p.email); setExtId(p.extId);
+  const identifiers = {};
+  if (p.email) identifiers.email_id = p.email;
+  if (p.extId) identifiers.ext_id = p.extId;
+  window.Brevo = window.Brevo || [];
+  Brevo.push(["identify", {
+    identifiers: identifiers,
+    attributes: p.extId ? { EXT_ID: p.extId } : {}   // documented way to store EXT_ID on the contact
+  }]);
+}
+
+/* Profile menu (top right of the header): "Sign in" opens a small panel (email and/or ext_id);
+   once connected it shows an avatar with a check and "Authenticated as …" plus Log out.
+   It shows what the site last sent to Brevo.identify (kept in localStorage); the tracker
+   can't read back which contact Brevo holds for the cookie. */
+function renderProfile() {
+  const nav = document.querySelector("header .nav");
+  if (!nav) return;
+  let root = document.getElementById("profile");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "profile";
+    root.className = "profile";
+    nav.appendChild(root);
+    document.addEventListener("click", e => { if (!root.contains(e.target)) root.classList.remove("open"); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") root.classList.remove("open"); });
+  }
+  const email = getEmail(), extId = getExtId(), cuid = getCookie(TRACKER_COOKIE);
+  const connected = !!(email || extId);
+  const mk = (tag, props, kids) => { const el = Object.assign(document.createElement(tag), props || {}); (kids || []).forEach(k => el.appendChild(k)); return el; };
+  const label = email || extId;
+  root.textContent = "";
+  root.classList.toggle("is-auth", connected);
+
+  const trigger = mk("button", {
+    type: "button", className: "profile-btn",
+    title: connected ? "Authenticated as " + label : "Sign in",
+    onclick: () => {
+      root.classList.toggle("open");
+      if (!root.classList.contains("open")) return;
+      const c = getCookie(TRACKER_COOKIE);   // read now: sa.js sets it after first render
+      root.querySelectorAll(".profile-cookie").forEach(el => { el.textContent = "Tracker cookie: " + (c ? c.slice(0, 8) + "…" : "(not set yet)"); });
+      const f = root.querySelector("input"); if (f) f.focus();
+    }
+  });
+  trigger.setAttribute("aria-haspopup", "true");
+  if (connected) {
+    trigger.appendChild(mk("span", { className: "avatar", textContent: label.charAt(0).toUpperCase() }, [mk("span", { className: "avatar-check", textContent: "✓" })]));
+  } else {
+    trigger.appendChild(mk("span", { className: "avatar avatar-anon", innerHTML: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>' }));
+    trigger.appendChild(mk("span", { className: "profile-label", textContent: "Sign in" }));
+  }
+  root.appendChild(trigger);
+
+  const panel = mk("div", { className: "profile-panel" });
+  const cookieLine = mk("p", { className: "profile-meta profile-cookie", textContent: "Tracker cookie: " + (cuid ? cuid.slice(0, 8) + "…" : "(not set yet)") });
+  if (connected) {
+    panel.appendChild(mk("p", { className: "profile-status", textContent: "✓ Authenticated" }));
+    if (email) panel.appendChild(mk("p", { className: "profile-row", innerHTML: "<span>Email</span>" }, [mk("b", { textContent: email })]));
+    if (extId) panel.appendChild(mk("p", { className: "profile-row", innerHTML: "<span>ext_id</span>" }, [mk("b", { textContent: extId })]));
+    panel.appendChild(cookieLine);
+    panel.appendChild(mk("button", { type: "button", className: "btn btn-ghost profile-action", textContent: "Log out", onclick: logout }));
+  } else {
+    const emailIn = mk("input", { type: "email", placeholder: "you@example.com", autocomplete: "off" });
+    const extIn = mk("input", { placeholder: "ext_id", autocomplete: "off" });
+    const err = mk("p", { className: "profile-err" });
+    const form = mk("form", {
+      onsubmit: e => {
+        e.preventDefault();
+        const em = emailIn.value.trim(), x = extIn.value.trim();
+        if (!em && !x) { err.textContent = "Enter an email or an ext_id."; return; }
+        connectAs(em, x);
+      }
+    }, [
+      mk("p", { className: "profile-status", textContent: "Sign in" }),
+      mk("label", { textContent: "Email" }, [emailIn]),
+      mk("label", { textContent: "ext_id" }, [extIn]),
+      err,
+      mk("button", { type: "submit", className: "btn btn-primary profile-action", textContent: "Connect" })
+    ]);
+    panel.appendChild(form);
+    panel.appendChild(mk("p", { className: "profile-meta", textContent: "Connecting resets the tracker cookie, then identifies you on the new one." }));
+    panel.appendChild(cookieLine);
+  }
+  root.appendChild(panel);
 }
 
 document.addEventListener("DOMContentLoaded", updateCartBadges);
-document.addEventListener("DOMContentLoaded", renderIdentityBar);
+document.addEventListener("DOMContentLoaded", flushPendingIdentify);
+document.addEventListener("DOMContentLoaded", renderProfile);

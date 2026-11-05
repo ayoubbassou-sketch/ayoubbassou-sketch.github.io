@@ -252,7 +252,8 @@ function flushPendingIdentify() {
 }
 
 /* Profile menu (top right of the header): "Sign in" opens a small panel (email and/or ext_id);
-   once connected it shows an avatar with a check and "Authenticated as …" plus Log out.
+   once connected it shows an avatar with a check and "Authenticated as …" (no log out:
+   switching person needs a fresh browser profile, the pop-up SDK stays tied to the first contact).
    It shows what the site last sent to Brevo.identify (kept in localStorage); the tracker
    can't read back which contact Brevo holds for the cookie. */
 function renderProfile() {
@@ -301,7 +302,6 @@ function renderProfile() {
     if (email) panel.appendChild(mk("p", { className: "profile-row", innerHTML: "<span>Email</span>" }, [mk("b", { textContent: email })]));
     if (extId) panel.appendChild(mk("p", { className: "profile-row", innerHTML: "<span>ext_id</span>" }, [mk("b", { textContent: extId })]));
     panel.appendChild(cookieLine);
-    panel.appendChild(mk("button", { type: "button", className: "btn btn-ghost profile-action", textContent: "Log out", onclick: logout }));
   } else {
     const emailIn = mk("input", { type: "email", placeholder: "you@example.com", autocomplete: "off" });
     const extIn = mk("input", { placeholder: "ext_id", autocomplete: "off" });

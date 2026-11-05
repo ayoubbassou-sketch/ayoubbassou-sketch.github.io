@@ -204,18 +204,35 @@ function resetTrackerCookie() {
   try { localStorage.removeItem("BrevoTracker.identifyCalledDate"); } catch (e) {}
 }
 
+/* The pop-up SDK (WonderPush, loaded by the Brevo tracker) keeps its own install and a
+   "brevoIdentify" record whose identifiers are merged with every identify call. It lives
+   outside sib_cuid, so without this reset the device stays tied to the previous contact
+   (pop-up targeting and identify keep the old email). clearAllData() starts a fresh install. */
+function resetPopupSdk() {
+  const wp = window.WonderPush;
+  if (!wp || typeof wp.clearAllData !== "function") return Promise.resolve();
+  return Promise.race([
+    Promise.resolve().then(() => wp.clearAllData()).catch(() => {}),
+    new Promise(r => setTimeout(r, 4000))
+  ]);
+}
+
 function connectAs(email, extId) {
   if (!email && !extId) return;
   try { localStorage.setItem(PENDING_KEY, JSON.stringify({ email: email || "", extId: extId || "" })); } catch (e) {}
   setEmail(""); setExtId("");
-  resetTrackerCookie();
-  window.location.reload();
+  resetPopupSdk().then(() => {
+    resetTrackerCookie();
+    window.location.reload();
+  });
 }
 function logout() {
   try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
   setEmail(""); setExtId("");
-  resetTrackerCookie();
-  window.location.reload();
+  resetPopupSdk().then(() => {
+    resetTrackerCookie();
+    window.location.reload();
+  });
 }
 
 /* After the reload: identify the pending person on the brand-new cookie */
